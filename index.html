@@ -187,6 +187,14 @@ button.action{flex:1;border:0;border-radius:999px;padding:12px;font-weight:800;c
 })();
 </script>
 
+<style id="staffResetCSS">
+.staff-reset{margin:28px 0 10px;text-align:center}.staff-reset>button{border:0;background:transparent;text-decoration:underline;color:#68756c;font-size:11px}
+#srModal{display:none;position:fixed;inset:0;background:#0008;z-index:999999;align-items:center;justify-content:center;padding:20px}
+#srModal.show{display:flex}.srbox{background:#fffdf4;border-radius:22px;padding:24px;width:min(360px,90vw);text-align:center}
+.srbox input{box-sizing:border-box;width:100%;padding:13px;border:1px solid #ccd5cc;border-radius:12px;text-align:center;font-size:18px;letter-spacing:4px}
+.srbuttons{display:flex;gap:10px;margin-top:12px}.srbuttons button{flex:1;border:0;border-radius:999px;padding:12px;font-weight:bold}
+#srCancel{background:#eee}#srOK{background:#667b69;color:white}#srError{color:#b34b43;font-size:12px;min-height:20px;margin-top:7px}
+</style>
 </head>
 <body>
 <main class="app">
@@ -514,5 +522,28 @@ processUrlStamp();
 })();
 </script>
 
+<div class="staff-reset"><button id="srOpen" type="button">スタッフ用リセット</button></div>
+<div id="srModal"><div class="srbox"><h3>スタッフ用リセット</h3>
+<p>スタッフ番号を入力してください。</p>
+<input id="srCode" type="password" inputmode="numeric" maxlength="4" placeholder="番号">
+<div id="srError"></div><div class="srbuttons">
+<button id="srCancel" type="button">キャンセル</button><button id="srOK" type="button">リセットする</button>
+</div></div></div>
+<script id="staffResetJS">
+(function(){
+const CODE="1001",m=document.getElementById("srModal"),i=document.getElementById("srCode"),e=document.getElementById("srError");
+document.getElementById("srOpen").onclick=()=>{m.classList.add("show");i.value="";e.textContent="";setTimeout(()=>i.focus(),50)};
+document.getElementById("srCancel").onclick=()=>m.classList.remove("show");
+function reset(){
+ if(i.value!==CODE){e.textContent="番号が違います。";return}
+ const ks=[];for(let n=0;n<localStorage.length;n++){const k=localStorage.key(n);if(k&&k.startsWith("animalRally"))ks.push(k)}
+ ks.forEach(k=>localStorage.removeItem(k));
+ sessionStorage.clear();
+ location.href="index.html?reset="+Date.now();
+}
+document.getElementById("srOK").onclick=reset;
+i.addEventListener("keydown",x=>{if(x.key==="Enter")reset()});
+})();
+</script>
 </body>
 </html>
