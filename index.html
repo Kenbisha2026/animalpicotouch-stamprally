@@ -119,6 +119,74 @@ button.action{flex:1;border:0;border-radius:999px;padding:12px;font-weight:800;c
 .real-nfc-guide b{display:block;margin-top:3px;color:var(--deep);line-height:1.55}
 .real-nfc-guide small{display:block;margin-top:6px;line-height:1.55}
 </style>
+
+<style id="redeem-style">
+#redeemBtn{border:0;cursor:pointer;font:inherit}
+#redeemBtn.redeemed{background:#d8ddd4!important;color:#667067!important;cursor:default}
+.redeem-note{font-size:12px;line-height:1.6;margin-top:10px;color:#6d776f}
+#redeemModal{position:fixed;inset:0;background:rgba(30,45,36,.48);display:none;align-items:center;justify-content:center;padding:22px;z-index:99999}
+#redeemModal.show{display:flex}
+.redeem-dialog{width:min(420px,92vw);background:#fffdf4;border-radius:24px;padding:26px 22px;text-align:center;box-shadow:0 18px 60px rgba(0,0,0,.2)}
+.redeem-dialog h3{margin:0 0 10px;color:#31493b;font-size:22px}
+.redeem-dialog p{margin:0 0 18px;color:#59685f;line-height:1.7;font-size:14px}
+.redeem-actions{display:flex;gap:10px}
+.redeem-actions button{flex:1;border:0;border-radius:999px;padding:13px 12px;font-weight:700;font-size:14px;cursor:pointer}
+#redeemCancel{background:#edf0eb;color:#58635b}
+#redeemConfirm{background:#efbd42;color:#fff}
+.redeemed-box{padding:16px;border-radius:18px;background:#edf4e9;color:#36513e;font-weight:700;margin-top:12px}
+</style>
+
+
+<script id="cycle-reset-script">
+(function(){
+  const COLLECTION_KEY = "animalRallyCollectedV3";
+  const REDEEM_KEY = "animalRallyGoodsRedeemedV1";
+  const COMPLETE_AT_KEY = "animalRallyCompletedAtV1";
+  const WAIT_MS = 15 * 60 * 1000;
+
+  function readCollection(){
+    try {
+      const a = JSON.parse(localStorage.getItem(COLLECTION_KEY) || "[]");
+      return Array.isArray(a) ? a : [];
+    } catch(e) { return []; }
+  }
+
+  const current = readCollection();
+  const completedAt = Number(localStorage.getItem(COMPLETE_AT_KEY) || 0);
+  const isAnimalPage = /\/(owl|hedgehog|flamingo|polarbear|wolf)\.html$/i.test(location.pathname);
+
+  // 5/5になった最初の時刻を記録
+  if(current.length >= 5 && !completedAt){
+    localStorage.setItem(COMPLETE_AT_KEY, String(Date.now()));
+  }
+
+  const effectiveCompletedAt = Number(localStorage.getItem(COMPLETE_AT_KEY) || 0);
+
+  // 5/5から15分以上経過後、次に開いた「動物ページ」で新しい周回を開始
+  if(isAnimalPage && current.length >= 5 && effectiveCompletedAt &&
+     (Date.now() - effectiveCompletedAt >= WAIT_MS)) {
+
+    localStorage.removeItem(COLLECTION_KEY);
+    localStorage.removeItem(REDEEM_KEY);
+    localStorage.removeItem(COMPLETE_AT_KEY);
+
+    ["owl","hedgehog","flamingo","polarbear","wolf"].forEach(function(k){
+      localStorage.removeItem("animalRallyLastTouchV3_" + k);
+      localStorage.removeItem("animalRallyTagLastGet_" + k);
+    });
+
+    // リロード後、通常のページ処理で「今開いた動物」が1/5として追加される
+    location.reload();
+    return;
+  }
+
+  // 新しい周回中は古い完了時刻を残さない
+  if(current.length < 5 && effectiveCompletedAt){
+    localStorage.removeItem(COMPLETE_AT_KEY);
+  }
+})();
+</script>
+
 </head>
 <body>
 <main class="app">
@@ -353,5 +421,98 @@ function processUrlStamp() {
 render();
 processUrlStamp();
 </script>
+
+<div id="redeemModal" aria-hidden="true">
+  <div class="redeem-dialog">
+    <h3>🎁 グッズを引き換えますか？</h3>
+    <p>この操作は元に戻せません。<br><strong>スタッフの前で「引き換える」を押してください。</strong></p>
+    <div class="redeem-actions">
+      <button id="redeemCancel" type="button">キャンセル</button>
+      <button id="redeemConfirm" type="button">引き換える</button>
+    </div>
+  </div>
+</div>
+
+
+<script id="redeem-script">
+(function(){
+  const REDEEM_KEY = "animalRallyGoodsRedeemedV1";
+  function findCompleteBox(){
+    return document.getElementById("complete") ||
+      [...document.querySelectorAll("div,section")].find(el => /COLLECTION COMPLETE!/.test(el.textContent || ""));
+  }
+  function setup(){
+    const box = findCompleteBox();
+    if(!box) return;
+
+    let btn = document.getElementById("redeemBtn");
+    if(!btn){
+      const old = [...box.querySelectorAll("a,button")].find(el => /限定コンテンツ|OPEN|グッズ/.test(el.textContent || ""));
+      if(old){
+        btn = document.createElement("button");
+        btn.id = "redeemBtn";
+        btn.type = "button";
+        btn.className = old.className;
+        btn.style.cssText = old.style.cssText;
+        old.replaceWith(btn);
+      } else {
+        btn = document.createElement("button");
+        btn.id = "redeemBtn";
+        btn.type = "button";
+        btn.textContent = "🎁 グッズを引き換える";
+        btn.style.cssText = "margin-top:18px;border:0;border-radius:999px;padding:14px 24px;background:#efbd42;color:#fff;font-weight:700;font-size:16px;";
+        box.appendChild(btn);
+      }
+    }
+
+    const modal = document.getElementById("redeemModal");
+    const cancel = document.getElementById("redeemCancel");
+    const confirm = document.getElementById("redeemConfirm");
+
+    function renderRedeem(){
+      const done = localStorage.getItem(REDEEM_KEY) === "1";
+      if(done){
+        btn.textContent = "✓ グッズ引き換え済み";
+        btn.classList.add("redeemed");
+        btn.disabled = true;
+        let doneBox = document.getElementById("redeemedBox");
+        if(!doneBox){
+          doneBox = document.createElement("div");
+          doneBox.id = "redeemedBox";
+          doneBox.className = "redeemed-box";
+          doneBox.textContent = "🎁 グッズは引き換え済みです";
+          btn.insertAdjacentElement("afterend", doneBox);
+        }
+      }else{
+        btn.textContent = "🎁 グッズを引き換える";
+        btn.classList.remove("redeemed");
+        btn.disabled = false;
+      }
+    }
+
+    btn.onclick = function(){
+      if(localStorage.getItem(REDEEM_KEY)==="1") return;
+      modal.classList.add("show");
+      modal.setAttribute("aria-hidden","false");
+    };
+    cancel.onclick = function(){
+      modal.classList.remove("show");
+      modal.setAttribute("aria-hidden","true");
+    };
+    confirm.onclick = function(){
+      localStorage.setItem(REDEEM_KEY,"1");
+      modal.classList.remove("show");
+      modal.setAttribute("aria-hidden","true");
+      renderRedeem();
+      if(navigator.vibrate) navigator.vibrate([50,40,80]);
+    };
+    modal.addEventListener("click", function(e){ if(e.target===modal) cancel.click(); });
+    renderRedeem();
+  }
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",setup);
+  else setup();
+})();
+</script>
+
 </body>
 </html>
